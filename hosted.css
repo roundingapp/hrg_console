@@ -1,0 +1,23 @@
+/* Read-only web copy: hide every control that would change something. Writes are refused in
+   hosted.js and by Firestore rules regardless — this only keeps dead buttons off the screen. */
+.sidebar-footer,.desktop-mode,.modebutton,[data-action="autoplan"],
+[data-action="settings"],[data-action="refresh"],[data-action="consult"],[data-action="new-run"],
+[data-action="review-patient"],[data-action="review-all"],[data-action="review"],[data-action="unreview"],
+[data-action="board-unreview"],[data-board-reset],[data-board-clear-shade],#board-settings,
+.handoff-tabs [data-id="signout"],[data-action^="handoff-"],[data-action="generate"],[data-action="cancel"],
+[data-action="note-change"],[data-action="revise"],[data-action="extract"],.note-capture,#pull-refresh,
+[data-action="capture-note"],[data-action="submit-note-change"],[data-action="cancel-note-change"],.note-capture-details,[data-hosted-hidden]{display:none!important}
+#hosted-banner{position:sticky;top:0;z-index:50;display:flex;gap:.4rem;align-items:center;justify-content:center;flex-wrap:wrap;padding:.35rem 1rem;font-size:.8rem;background:var(--teal-soft,#e6f4f1);color:var(--ink,#1b2733)}
+#hosted-banner span{font-weight:600}
+#hosted-banner.stale{background:#fff3d6;color:#7a4b00}
+#hosted-banner button{margin-left:.6rem;border:0;background:none;text-decoration:underline;color:inherit;font:inherit;cursor:pointer}
+.hosted-chips{display:flex;flex-wrap:wrap;gap:.4rem;margin:.6rem 0}
+.hosted-chip{display:flex;flex-direction:column;align-items:flex-start;padding:.35rem .6rem;border:1px solid var(--line,#d9dee5);border-radius:10px;background:var(--card,#fff);color:inherit;font:inherit;font-size:.85rem;cursor:pointer;min-width:0}
+.hosted-chip span{color:var(--muted,#66727f)}
+.hosted-chip small{font-size:.7rem;color:var(--muted,#66727f)}
+.hosted-chip.active{border-color:var(--teal,#127c6f);box-shadow:inset 0 0 0 1px var(--teal,#127c6f)}
+.hosted-chip.warn small{color:#9a5b00}
+.hosted-chip.bad small{color:#b42318}
+.hosted-chip:disabled{opacity:.55;cursor:default}
+#hosted-login input{display:block;width:100%;margin:.4rem 0;padding:.6rem .7rem;border:1px solid var(--line,#d9dee5);border-radius:8px;font:inherit;box-sizing:border-box}
+@media (max-width:480px){.hosted-chip{font-size:.8rem}}
