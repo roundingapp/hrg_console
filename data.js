@@ -10,6 +10,14 @@ const DataView=(()=>{
   function badge(ok,text){return `<span class="badge ${ok?'teal':'amber'}">${esc(text)}</span>`;}
   function kv(rows){return `<dl class="data-kv">${rows.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join('')}</dl>`;}
   function table(cols,rows){if(!rows.length)return '<p class="small muted">Nothing.</p>';return `<div class="data-table"><table><thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
+  function switchTable(rows){
+    if(!rows.length)return '<p class="small muted">migration 008 not applied yet</p>';
+    const st=s=>s==='done'?'<span class="pill ok">done</span>':s==='ready'?'<span class="pill warn">READY — your word</span>':s==='blocked'?'<span class="pill muted">blocked</span>':s==='rolled_back'?'<span class="pill bad">rolled back</span>':'<span class="pill">pending</span>';
+    const whenOf=r=>when(r.done_at||r.ready_at||r.last_eval_at);
+    return table(['#','switch','status','gate','action / rollback','when'],rows.map(r=>[r.ord,`<strong>${esc(r.title)}</strong><br><span class="small muted">${esc(r.what)}</span><br><span class="small">why: ${esc(r.why)}</span>`,st(r.status),`${esc(r.gate)}${r.gate_detail&&Object.keys(r.gate_detail).length?`<br><code class="small">${esc(JSON.stringify(Object.fromEntries(Object.entries(r.gate_detail).filter(([k])=>k!=='action'))).slice(0,160))}</code>`:''}`,`${esc(r.action)}<br><span class="small muted">undo: ${esc(r.rollback)}</span>`,whenOf(r)]));
+  }
+  function notesSub(n){return n.error?esc(n.error):`one full-text row per signed renal note · sections cut by the library · parity ${n.parity?when(n.parity.checked_at):'not run'}`;}
+  function parityLine(p){if(!p)return '—';const num=p.numbering_only||0,rate=p.pairs?Math.round(1000*(p.matched+num)/p.pairs)/10:null,dg=p.digest||{};return `device captures (the gate): <strong>${p.matched}/${p.pairs}</strong> exact${rate!==null?` · ${rate}% agree`:''} · <strong>${p.mismatched}</strong> differ<br><span class="small muted">digest copies: ${dg.matched??0}/${dg.pairs??0} exact · ${dg.numbering_only??0} same words (list numbers lost) · ${dg.mismatched??0} differ (deduped text) · ${p.unextracted??0} renal full texts with no A/P found</span>`;}
   function card(title,sub,body,extra=''){return `<article class="card data-card"><div class="row start"><div class="grow"><h3>${esc(title)}</h3>${sub?`<p class="small muted">${sub}</p>`:''}</div>${extra}</div>${body}</article>`;}
   function page(){
     if(!cache&&!error&&!loading)void refresh();
@@ -25,6 +33,8 @@ const DataView=(()=>{
       card('Completeness warnings',`last ${(d.warnings||[]).length} from recent runs`,table(['run','patient','type','warning'],(d.warnings||[]).slice(0,12).map(w=>[esc(w.run_id),esc(w.mrn||''),esc(w.data_type||''),esc(w.text||'')])))+
       card('Image quarantine',`${d.images?.quarantined??0} awaiting parse confirmation · ${d.images?.confirmed??0} confirmed · ${d.images?.failed??0} failed`,table(['run','count'],(d.images?.by_run||[]).slice(0,8).map(r=>[esc(r.run_id),r.n])))+
       card('Stray scan',`weekly, Sunday 08:00 · report only · last ${when(sc.scanned_at)}`,kv([['stray files outside the data dir',`<strong>${sc.stray_files??'—'}</strong> (${sc.stray_hits??0} hits)`],['legacy (retire at Step 6)',`${sc.legacy_files??'—'} files`],['top locations',table(['directory','files','hits'],(sc.top||[]).slice(0,8).map(r=>[`<code>${esc(r.dir)}</code>`,r.files,r.hits]))]]),badge((sc.stray_files||0)===0,(sc.stray_files||0)===0?'clean':'strays found'))+
+      card('Switch ledger','what we are switching · gate · when · why · rollback — evaluated nightly at 23:00',switchTable(d.switches||[]))+
+      card('Canonical notes',notesSub(d.notes||{}),kv([['renal full texts',`${d.notes?.full_rows??'—'} (library sections ${d.notes?.library_sections??'—'})`],['A/P-only fragments',`${d.notes?.ap_only_rows??'—'} · folded ${d.notes?.folded??'—'} · still standing ${d.notes?.fragments_unfolded??'—'}`],['parity (library cut = precache capture)',parityLine(d.notes?.parity)]]))+
       card('Review queues','identity links, vocabulary, unresolved names',kv([['link review',`${d.queues?.links??0} pending · <code>chartdb links review</code>`],['vocab pending',`${d.queues?.vocab??0} · <code>chartdb vocab pending</code>`],['unresolved identities',`${d.queues?.unresolved??0} names · <code>chartdb unresolved list</code>`],['parked deferred records',`${d.queues?.deferred??0}`]]))+
       `</div>`;
   }

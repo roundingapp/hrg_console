@@ -76,6 +76,7 @@ const Hosted=(()=>{
     if(!l.as_of)return {text:'Not read today',cls:'bad'};
     const st=rw?.lists?.[l.list];
     if(st?.failed)return {text:'Not read since '+hm(l.as_of),cls:'bad'};
+    if(rw?.active&&st?.walking)return {text:'Updated '+hm(l.as_of)+' · refreshing now',cls:''};
     if(rw?.active&&st?.next_start){
       const a=new Date(st.next_start),b=new Date(+a+15*60000);
       if(Date.now()>+b)return {text:'Updated '+hm(l.as_of)+' · refresh delayed (phones busy)',cls:'warn'};
