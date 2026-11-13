@@ -4,7 +4,8 @@
 // there is no server here, and Firestore rules deny all client writes anyway.
 const Hosted=(()=>{
   const STALE_MS=3*60*1000;
-  let cache=null,meta=null,watching=false,banner=null;
+  // Neil reads `console`; partner viewers (Run tab only) are denied there and read `console_partner`.
+  let cache=null,meta=null,watching=false,banner=null,col='console',unwatch=null;
   const fb=()=>window._fb;
   const ready=()=>window._fb?Promise.resolve():new Promise(r=>window.addEventListener('firebase-ready',r,{once:true}));
   function authed(){return new Promise(r=>{const u=fb().auth.currentUser;if(u)return r(u);const off=fb().fns.onAuthStateChanged(fb().auth,x=>{off();r(x);});});}
@@ -21,12 +22,14 @@ const Hosted=(()=>{
     const {doc,getDocFromServer}=fb().fns,db=fb().db;
     for(let attempt=0;attempt<3;attempt++){
       let m;
-      try{m=(await getDocFromServer(doc(db,'console','meta'))).data();}
-      catch(e){if(e.code==='permission-denied')throw err('denied',403);throw err('Could not reach the console data. Check your connection.',503);}
+      try{m=(await getDocFromServer(doc(db,col,'meta'))).data();}
+      catch(e){
+        if(e.code==='permission-denied'&&col==='console'){col='console_partner';attempt--;continue;}
+        if(e.code==='permission-denied')throw err('denied',403);throw err('Could not reach the console data. Check your connection.',503);}
       if(!m)throw err('No snapshot has been published yet.',503);
       meta=m;watch();
       if(cache&&cache.gen===m.gen)return structuredClone(cache.data);
-      const parts=await Promise.all([...Array(m.count).keys()].map(i=>getDocFromServer(doc(db,'console','chunk'+i)).then(s=>s.data())));
+      const parts=await Promise.all([...Array(m.count).keys()].map(i=>getDocFromServer(doc(db,col,'chunk'+i)).then(s=>s.data())));
       if(parts.some(p=>!p||p.gen!==m.gen))continue;   // a newer snapshot landed mid-read; read again
       const data=await decode(parts.map(p=>p.data).join(''));
       cache={gen:m.gen,data};
@@ -37,7 +40,7 @@ const Hosted=(()=>{
   function watch(){
     if(watching)return;watching=true;
     const {doc,onSnapshot}=fb().fns;
-    onSnapshot(doc(fb().db,'console','meta'),s=>{const m=s.data();if(!m)return;const fresh=!meta||m.gen!==meta.gen;meta=m;paintBanner();if(fresh&&typeof load==='function')load(true);},()=>{});
+    unwatch=onSnapshot(doc(fb().db,col,'meta'),s=>{const m=s.data();if(!m)return;const fresh=!meta||m.gen!==meta.gen;meta=m;paintBanner();if(fresh&&typeof load==='function')load(true);},()=>{});
   }
   async function api(path,body){
     if(body!==undefined)throw err('Read-only copy — make changes in the AutoNote console on the Mac.',405);
@@ -67,7 +70,7 @@ const Hosted=(()=>{
   });
   document.addEventListener('click',async e=>{
     if(!e.target.closest('[data-hosted-signout]'))return;
-    await fb().fns.signOut(fb().auth);cache=null;meta=null;S.data=null;if(banner)banner.hidden=true;login();
+    await fb().fns.signOut(fb().auth);cache=null;meta=null;col='console';if(unwatch)unwatch();unwatch=null;watching=false;S.data=null;if(banner)banner.hidden=true;login();
   },true);
 
   // Provider-list chips on the Run board: wrap, never scroll sideways. Each shows when its
