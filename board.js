@@ -165,7 +165,7 @@ const RunBoard=(()=>{
   function stack0(p){
     const st=p.stack;
     if(!st)return `<p class="rb-nolabs">${['queued','in_progress'].includes(p.status)?'Stack appears once the template is read':p.status==='cardonly'?'No stack read':'No note written this run'}</p>`;
-    return `<div class="rb-stack">${st.lead?`<p class="rb-lead">${esc(st.lead)}</p>`:''}${st.sections.map(([t,b])=>`<div class="rb-sec"><span class="rb-sec-t">${esc(SHORT[t]||t)}</span><div>${esc(b)}</div></div>`).join('')}</div>`;
+    return `<div class="rb-stack">${st.lead?`<p class="rb-lead">${esc(st.lead)}</p>`:''}${st.sections.filter(([t])=>t!=='Medical Decision Making').map(([t,b])=>`<div class="rb-sec"><span class="rb-sec-t">${esc(SHORT[t]||t)}</span><div>${esc(b)}</div></div>`).join('')}</div>`;
   }
 
   // Imaging reports that put this patient in their tier — on the card face
