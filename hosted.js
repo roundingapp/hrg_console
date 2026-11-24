@@ -103,7 +103,85 @@ const Hosted=(()=>{
     const c=e.target.closest('[data-hosted-chip]');if(!c||c.disabled)return;
     RunBoard.action('board-provider',{dataset:{id:c.dataset.hostedChip}});
   });
-  return {api,login,denied,decorate,state};
+  // ── Card view dot (Neil 2026-11-24; spec in console/TASKS.md) ─────────────────────────────
+  // Partners: each tap that OPENS a Run-board card writes one entry to `console_opens`
+  // ({uid, patient, ts}; rules: create-only, own uid, server time). Neil (col==='console')
+  // never writes; he sees one dot per card after the provider name:
+  //   green = any provider opened it today (CT) · grey = no recorded open, before 10:00 ·
+  //   red = no recorded open by 10:00. Tap = popup with each provider's open times.
+  // A write that fails (offline, denied) leaves no record — the popup says "no recorded open".
+  const OPENS='console_opens',ctDay=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+  const ctHour=()=>+new Date().toLocaleString('en-US',{timeZone:'America/Chicago',hour:'numeric',hour12:false})%24;
+  let opens=null,openNames={},opensAt=0,opensBusy=false;
+  const lastWrite={};
+  document.addEventListener('click',e=>{
+    if(col!=='console_partner')return;
+    const sum=e.target.closest('.rb-card>summary');if(!sum||e.target.closest('button,a,input'))return;
+    const card=sum.parentElement,id=card.dataset.patientId;if(!id||card.open)return;   // about to open
+    if(Date.now()-(lastWrite[id]||0)<60000)return;lastWrite[id]=Date.now();
+    const u=fb()?.auth.currentUser;if(!u)return;
+    const {collection,addDoc,serverTimestamp}=fb().fns;
+    addDoc(collection(fb().db,OPENS),{uid:u.uid,patient:String(id),ts:serverTimestamp()}).catch(()=>{});
+  },true);
+  async function loadOpens(){
+    if(opensBusy||Date.now()-opensAt<20000)return false;opensBusy=true;
+    try{
+      const {collection,query,where,getDocsFromServer,Timestamp,doc,getDocFromServer}=fb().fns,db=fb().db;
+      if(!Object.keys(openNames).length){try{openNames=(await getDocFromServer(doc(db,'console_opens_meta','names'))).data()||{};}catch{}}
+      const snap=await getDocsFromServer(query(collection(db,OPENS),where('ts','>=',Timestamp.fromMillis(Date.now()-50*3600*1000))));
+      const by={};snap.forEach(d=>{const o=d.data();if(!o.ts)return;(by[o.patient]=by[o.patient]||[]).push({uid:o.uid,t:o.ts.toMillis()});});
+      opens=by;opensAt=Date.now();return true;
+    }catch{return false;}finally{opensBusy=false;}
+  }
+  const who=uid=>openNames[uid]?.name||'Unknown provider';
+  function dotState(id){
+    const today=ctDay(Date.now()),seen=(opens?.[id]||[]).some(o=>ctDay(o.t)===today);
+    return seen?'green':ctHour()>=10?'red':'grey';
+  }
+  function paintDots(){
+    if(col!=='console'||S.view!=='review')return;
+    document.querySelectorAll('#main .rb-card').forEach(c=>{
+      const id=c.dataset.patientId,host=c.querySelector('.rb-stcol');if(!id||!host)return;
+      let d=host.querySelector('.hv-dot');
+      if(!d){d=document.createElement('button');d.type='button';d.className='hv-dot';(host.querySelector('.rb-prov')||host).appendChild(d);}
+      const s=opens?dotState(id):'unknown';d.dataset.state=s;d.dataset.pid=id;
+      d.setAttribute('aria-label',s==='green'?'Opened by a provider today':s==='unknown'?'Could not load provider opens':'No recorded provider open today');
+    });
+  }
+  function popup(btn){
+    closePopup();
+    const id=btn.dataset.pid,card=btn.closest('.rb-card'),today=ctDay(Date.now()),yest=ctDay(Date.now()-86400000);
+    const rows=(opens?.[id]||[]).slice().sort((a,b)=>a.t-b.t),group=day=>{const g={};rows.filter(o=>ctDay(o.t)===day).forEach(o=>(g[o.uid]=g[o.uid]||[]).push(o.t));return g;};
+    const t=group(today),y=group(yest),fmt=ts=>ts.map(x=>new Date(x).toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit'})).join(', ');
+    const lists=[...(card?.querySelector('.rb-prov')?.textContent||'').split(',').map(s=>s.trim()).filter(Boolean)];
+    const notYet=lists.filter(l=>!Object.keys(t).some(u=>openNames[u]?.list===l));
+    const line=(u,ts)=>`<li><strong>${esc(who(u))}</strong> · ${esc(fmt(ts))}${ts.length>1?` <span class="muted">(${ts.length}×)</span>`:''}</li>`;
+    const el=document.createElement('div');el.id='hv-pop';el.setAttribute('role','dialog');
+    if(!opens){el.innerHTML='<p>Could not load who opened this card. Check your connection and try again.</p>';}else
+    el.innerHTML=`<h4>Opened today</h4>${Object.keys(t).length?`<ul>${Object.entries(t).map(([u,ts])=>line(u,ts)).join('')}</ul>`:'<p class="muted">No recorded open today.</p>'}`+
+      (notYet.length?`<p class="muted">Not opened today: ${esc(notYet.join(', '))}</p>`:'')+
+      `<h4>Yesterday</h4>${Object.keys(y).length?`<ul>${Object.entries(y).map(([u,ts])=>line(u,ts)).join('')}</ul>`:'<p class="muted">No recorded open.</p>'}`+
+      `<p class="small muted">Only opens on console.houstonrenal.com are recorded; an open made offline may be missing.</p>`;
+    document.body.appendChild(el);
+    const r=btn.getBoundingClientRect(),w=Math.min(300,window.innerWidth-32);el.style.width=w+'px';
+    el.style.left=Math.max(16,Math.min(r.right-w,window.innerWidth-w-16))+'px';el.style.top=Math.max(8,Math.min(r.bottom+6,window.innerHeight-el.offsetHeight-8))+'px';
+  }
+  function closePopup(){document.getElementById('hv-pop')?.remove();}
+  document.addEventListener('click',e=>{
+    const d=e.target.closest('.hv-dot');
+    if(d){e.preventDefault();e.stopPropagation();if(document.getElementById('hv-pop')?.dataset.pid===d.dataset.pid){closePopup();return;}popup(d);document.getElementById('hv-pop').dataset.pid=d.dataset.pid;return;}
+    if(!e.target.closest('#hv-pop'))closePopup();
+  },true);
+  document.addEventListener('pointerdown',e=>{if(e.target.closest('.hv-dot'))e.stopPropagation();},true);   // no long-press "unreviewed" on the dot
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closePopup();});
+  function decorateDots(){
+    if(col!=='console')return;
+    paintDots();
+    loadOpens().then(ok=>{if(ok)paintDots();});
+  }
+  setInterval(()=>{if(col==='console'&&S.view==='review')paintDots();},60000);   // grey → red at 10:00 without a reload
+  const baseDecorate=decorate;
+  return {api,login,denied,decorate:()=>{baseDecorate();decorateDots();},state};
 })();
 // Sheets (note text etc.): read-only fields, and drop the "verify to enable editing" prompts.
 new MutationObserver(()=>{

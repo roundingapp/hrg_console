@@ -21,3 +21,13 @@
 .hosted-chip:disabled{opacity:.55;cursor:default}
 #hosted-login input{display:block;width:100%;margin:.4rem 0;padding:.6rem .7rem;border:1px solid var(--line,#d9dee5);border-radius:8px;font:inherit;box-sizing:border-box}
 @media (max-width:480px){.hosted-chip{font-size:.8rem}}
+/* Card view dot (owner only): one per Run-board card, after the provider name. */
+.hv-dot{display:inline-block;width:10px;height:10px;margin-left:6px;padding:0;border:0;border-radius:50%;background:#9aa4b2;vertical-align:middle;cursor:pointer;position:relative}
+.hv-dot::after{content:"";position:absolute;inset:-10px}
+.hv-dot[data-state=green]{background:#12a150}
+.hv-dot[data-state=red]{background:#d92d20}
+.hv-dot[data-state=unknown]{background:transparent;box-shadow:inset 0 0 0 1.5px #9aa4b2}
+#hv-pop{position:fixed;z-index:60;background:var(--panel,#fff);color:var(--ink,#111);border:1px solid var(--line,#d9dee5);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.16);padding:.6rem .8rem;font-size:.85rem;max-height:70vh;overflow:auto}
+#hv-pop h4{margin:.3rem 0 .2rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted,#667085)}
+#hv-pop ul{margin:0 0 .3rem;padding-left:1rem}
+#hv-pop p{margin:.25rem 0}
